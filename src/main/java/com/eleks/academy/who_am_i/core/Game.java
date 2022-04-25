@@ -1,33 +1,21 @@
 package com.eleks.academy.who_am_i.core;
 
 public interface Game {
-	
+
 	void addPlayer(Player player);
-	
-	void begin();
-	
-	boolean makeTurn();
-	
-	void changeTurn();
-	
-	void endTurn();
-	
+
 	void assignCharacters();
-	
-	boolean isFinished();	
+
+	boolean makeTurn();
+
+	boolean isFinished();
+
+	void changeTurn();
 
 	void initGame();
-	
-	void init();
-	
-	void showPlayers();
-	
-	int countPlayers();
-	
-	void showResults();
-	
-	
-	
-	
+
+	boolean isPlayerPresent(Player player);
+
+	void play();
 
 }

@@ -1,124 +1,186 @@
 package com.eleks.academy.who_am_i.core.impl;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 import com.eleks.academy.who_am_i.core.Game;
 import com.eleks.academy.who_am_i.core.Player;
 import com.eleks.academy.who_am_i.core.Turn;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.*;
+
 public class RandomGame implements Game {
 
-	private Map<String, String> playersCharacter = new HashMap<>();
+	private static final int DURATION = 2;
+	private static final TimeUnit UNIT = TimeUnit.MINUTES;
+	private static final String YES = "Yes";
+	private static final String NO = "No";
+	private static final String NO_ANSWER = "Player did not asnwer within ";
+	private Map<String, String> playersCharacter = new ConcurrentHashMap<>();
 	private List<Player> players = new ArrayList<>();
 	private List<String> availableCharacters;
 	private Turn currentTurn;
 
-	private final static String YES = "Yes";
-	private final static String NO = "No";
-
-	public RandomGame(List<String> availableCharacters) {
-		this.availableCharacters = new ArrayList<String>(availableCharacters);
+	public RandomGame(List<Player> players, List<String> availableCharacters) {
+		this.availableCharacters = new ArrayList<>(availableCharacters);
+		this.players = new ArrayList<>(players);
 	}
 
-	static {
-		System.out.println("\tGame Started\n");
+	@Override
+	public boolean isPlayerPresent(Player player) {
+		return this.players.contains(player);
 	}
-	private Turn currentGameTurn;
-	private List<String> characters;
-	private List<Player> players;
-	private Map<String, String> playersCharacters = new HashMap<>();
-	private List<String> gameResult = new ArrayList<>();
-	private int turnCount = 0;
 
 	@Override
 	public void addPlayer(Player player) {
-		this.players.add(player);аа
-
-	public RandomGame(List<String> characters, List<Player> players) {
-		this.characters = new ArrayList<>(characters);
-		this.players = new ArrayList<>(players);
-
+		// TODO: Add test to ensure that player has not been added to the lists when failed to obtain suggestion
+		Future<String> maybeCharacter = player.suggestCharacter();
+		try {
+			String character = maybeCharacter.get(DURATION, UNIT);
+			if (!character.isBlank()) {
+				this.players.add(player);
+				this.availableCharacters.add(character);
+			}
+		} catch (InterruptedException | ExecutionException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			Thread.currentThread().interrupt();
+		} catch (TimeoutException e) {
+			e.printStackTrace();
+		}
 	}
 
 	@Override
 	public boolean makeTurn() {
-		Player currentPlayer = currentGameTurn.getGuesser();
-		
-		if(currentPlayer.isReadyForGuess()) {
-			return giveGuess(currentPlayer.getGuess(),currentPlayer);
-		} else {
-			boolean streak;
-			
-			do {
-				streak = giveQuestion(currentPlayer.getQuestion(), currentPlayer);
-			} while (streak != false);			
-			return true;
-		}		
-	}
+		Player currentGuesser = currentTurn.getGuesser();
+		String guessersName = null;
+		boolean isReadyGuess = false;
 
-	public void init() {
-			showPlayers();
-			assignCharacters();
-			begin();				
-					
-			while(isFinished() != true) {
-				turnCount++;
-				System.out.println("\tTurn №" + turnCount + " Started!\n");
-				boolean isTurnEnd = makeTurn();
-			
-				while(isTurnEnd != true) {
-					isTurnEnd = makeTurn();
-				}
-				return win;				
-		
-			} else {	
-				String question = currentGuesser.getQuestion();
-				answers = currentTurn.getOtherPlayers().stream()
-					.map(player -> player.answerQuestion(question, this.playersCharacter.get(currentGuesser.getName())))
-					.collect(Collectors.toSet());
-				long positiveCount = answers.stream().filter(a -> YES.equals(a)).count();
-				long negativeCount = answers.stream().filter(a -> NO.equals(a)).count();
-				return positiveCount > negativeCount;
-				endTurn();			
+		try {
+			guessersName = currentGuesser.getName().get();
+			isReadyGuess = currentGuesser.isReadyForGuess().get(DURATION, UNIT);
+		} catch (InterruptedException | ExecutionException e) {
+			// TODO: Add custom runtime exception implementation
+			Thread.currentThread().interrupt();
+		} catch (TimeoutException e) {
+			throw new PlayerAnswerException(NO_ANSWER + DURATION + " " + UNIT, e);
+		}
+		List<String> answers;
+		String guess = null;
+		if (isReadyGuess) {
+			try {
+				guess = currentGuesser.getGuess().get(DURATION, UNIT);
+			} catch (InterruptedException | TimeoutException | ExecutionException e) {
+				e.printStackTrace();
+				Thread.currentThread().interrupt();
 			}
-			
-			showResults();	
+			String finalGuess = guess;
+			String finalGuessersName = guessersName;
+			answers = currentTurn.getOtherPlayers().stream().parallel()
+					.map(player -> {
+						try {
+							return player.answerGuess(finalGuess, this.playersCharacter.get(finalGuessersName)).get(DURATION, UNIT);
+						} catch (InterruptedException | ExecutionException e) {
+							e.printStackTrace();
+							Thread.currentThread().interrupt();
+						} catch (TimeoutException ex) {
+							throw new PlayerAnswerException(NO_ANSWER + DURATION + " " + UNIT, ex);
+						}
+						return null;
+					}).toList();
+
+			long positiveCount = answers.stream().filter(YES::equals).count();
+			long negativeCount = answers.stream().filter(NO::equals).count();
+
+			boolean win = positiveCount > negativeCount;
+
+			if (win) {
+				players.remove(currentGuesser);
+			}
+			return false;
+
+		} else {
+			String question = null;
+			try {
+				question = currentGuesser.getQuestion().get(DURATION, UNIT);
+			} catch (InterruptedException | ExecutionException e) {
+				e.printStackTrace();
+				Thread.currentThread().interrupt();
+			} catch (TimeoutException ex) {
+				throw new PlayerAnswerException(NO_ANSWER + DURATION + " " + UNIT, ex);
+			}
+			String finalGuessersName1 = guessersName;
+			String finalQuestion = question;
+			answers = currentTurn.getOtherPlayers().stream()
+					.<String>map(player -> {
+						try {
+							return player.answerQuestion(finalQuestion, this.playersCharacter.get(finalGuessersName1)).get(DURATION, UNIT);
+						} catch (InterruptedException | ExecutionException e) {
+							e.printStackTrace();
+							Thread.currentThread().interrupt();
+						} catch (TimeoutException ex) {
+							throw new PlayerAnswerException(NO_ANSWER + DURATION + " " + UNIT, ex);
+						}
+						return null;
+
+					}).toList();
+
+			long positiveCount = answers.stream().filter(YES::equals).count();
+			long negativeCount = answers.stream().filter(NO::equals).count();
+			return positiveCount > negativeCount;
+		}
+
 	}
 
 	@Override
 	public void assignCharacters() {
-		players.stream().forEach(player -> this.playersCharacter.put(player.getName(), this.getRandomCharacter()));
-
-	}
-
-	@Override
-	public void showPlayers() {
-		System.out.println("Players: ");
-		players.stream().forEach(player -> System.out.println("-> " + player.getName()));
-		System.out.println();
+		players.stream().map(Player::getName).parallel().map(f -> {
+			// TODO: extract into a configuration parameters
+			try {
+				return f.get();
+			} catch (InterruptedException | ExecutionException e) {
+				Thread.currentThread().interrupt();
+				return null;
+			}
+		}).forEach(name -> this.playersCharacter.put(name, this.getRandomCharacter(name)));
 	}
 
 	@Override
 	public void initGame() {
 		this.currentTurn = new TurnImpl(this.players);
-
 	}
 
 	@Override
 	public boolean isFinished() {
-		if (players.size() == 1) {
-			gameResult.add(players.get(0).getName());
-		}
 		return players.size() == 1;
 	}
 
-	private String getRandomCharacter() {
-		int randomPos = (int)(Math.random() * this.availableCharacters.size()); 
+	private String getRandomCharacter(String name) {
+		int randomPos;
+		Optional<Player> currentPlayer = players.stream().filter(p -> {
+			try {
+				return p.getName().get().equals(name);
+			} catch (InterruptedException | ExecutionException e) {
+				e.printStackTrace();
+				Thread.currentThread().interrupt();
+				return false;
+			}
+		}).findFirst();
+		String character = "";
+		if (currentPlayer.isPresent()) {
+			try {
+				character = currentPlayer.get().suggestCharacter().get();
+			} catch (InterruptedException | ExecutionException e) {
+				e.printStackTrace();
+				Thread.currentThread().interrupt();
+			}
+		}
+		int indexOf = availableCharacters.indexOf(character);
+		do {
+			randomPos = (int) (Math.random() * this.availableCharacters.size());
+			// TODO: Ensure player never receives own suggested character
+		} while (randomPos != indexOf);
 		return this.availableCharacters.remove(randomPos);
 	}
 
@@ -128,74 +190,9 @@ public class RandomGame implements Game {
 	}
 
 	@Override
-	public void begin() {
-		currentGameTurn = new TurnImpl(players);
+	public void play() {
+		// TODO Auto-generated method stub
+
 	}
 
-	@Override
-	public void endTurn() {
-		System.out.println("\n\tTurn Is Ended!");
-		currentGameTurn.changeTurn();
-	}
-	
-
-	@Override
-	public int countPlayers() {
-		return players.size();
-	}
-
-	@Override
-	public void showResults() {
-		System.out.println("\tGame Finished!\n\tGame Results:\n");
-		for (int i = 0; i < gameResult.size(); i++) {
-			if(i == 0) {
-				System.out.println("Winner! -> " + gameResult.get(i));
-			}			
-		}
-	}	
-	
-	private boolean giveQuestion(String playerQuestion, Player currentPlayer) {
-		if (playerQuestion.isBlank()) {
-			return false;
-		}
-		List<String> playersAnswers;
-		
-		playersAnswers = currentGameTurn.getOtherPlayers().stream()
-				.map(player -> player.answerQuestion(playerQuestion, playersCharacters.get(currentPlayer.getName())))
-				.collect(Collectors.toList());
-		
-		long yes = playersAnswers.stream().filter(answer -> answer.equals(true)).count();
-		long no = playersAnswers.stream().filter(answer -> answer.equals(false)).count();
-		
-		return yes > no;
-	}
-	
-	private boolean giveGuess(String playerGuess, Player currentPlayer) {
-		List<String> playersAnswers;
-		
-		playersAnswers = currentGameTurn.getOtherPlayers().stream()
-				.map(player -> player.answerGuess(playerGuess, playersCharacters.get(currentPlayer.getName())))
-				.collect(Collectors.toList());
-		
-		long yes = playersAnswers.stream().filter(answer -> answer.equals(true)).count();
-		long no = playersAnswers.stream().filter(answer -> answer.equals(false)).count();
-		
-		if(yes > no) {
-			gameResult.add(currentPlayer.getName());
-			players.remove(currentPlayer);
-		}
-		return true;
-	}
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
 }

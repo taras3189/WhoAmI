@@ -1,5 +1,6 @@
 package com.eleks.academy.who_am_i;
 
+<<<<<<< HEAD
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -7,11 +8,20 @@ import java.io.InputStreamReader;
 import com.eleks.academy.who_am_i.core.Game;
 import com.eleks.academy.who_am_i.networking.client.ClientPlayer;
 import com.eleks.academy.who_am_i.networking.server.ServerImpl;
+=======
+import com.eleks.academy.who_am_i.configuration.ContextConfig;
+import com.eleks.academy.who_am_i.networking.server.Server;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+
+import java.io.IOException;
+>>>>>>> 2cdf8eb (Add files via upload)
 
 public class App {
 
 	public static void main(String[] args) throws IOException {
 
+<<<<<<< HEAD
 		ServerImpl server = new ServerImpl(888);
 
 		Game game = server.startGame();
@@ -43,6 +53,16 @@ public class App {
 		}
 
 		server.stopServer(socket, reader);
+=======
+		ApplicationContext applicationContext = new AnnotationConfigApplicationContext(ContextConfig.class);
+
+		Server server = applicationContext.getBean(Server.class);
+
+
+		server.startGame().play();
+
+
+>>>>>>> 2cdf8eb (Add files via upload)
 	}
 
 }
