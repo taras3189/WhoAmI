@@ -1,6 +1,5 @@
 package com.eleks.academy.who_am_i.core.impl;
 
-
 import com.eleks.academy.who_am_i.core.Player;
 import org.junit.jupiter.api.Test;
 
