@@ -15,9 +15,7 @@ public class App {
 
 		Server server = applicationContext.getBean(Server.class);
 
-
 		server.startGame().play();
-
 
 	}
 

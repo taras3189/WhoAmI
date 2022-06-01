@@ -45,7 +45,7 @@ public class ClientPlayer implements Player, AutoCloseable {
 	}
 
 	@Override
-	public Future<String> getQuestion() {
+	public String getQuestion() {
 		Callable<String> askQuestion = () -> {
 			String question = "";
 
@@ -76,7 +76,7 @@ public class ClientPlayer implements Player, AutoCloseable {
 	}
 
 	@Override
-	public Future<String> getGuess() {
+	public String getGuess() {
 		Callable<String> getGuess = () -> {
 			String answer = "";
 

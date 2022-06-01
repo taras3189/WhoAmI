@@ -30,7 +30,7 @@ public class RandomPlayer implements Player {
 	}
 
 	@Override
-	public Future<String> getQuestion() {
+	public String getQuestion() {
 		String question = availableQuestions.remove(0);
 		System.out.println("Player: " + name + ". Asks: " + question);
 		return CompletableFuture.completedFuture(question);
@@ -52,7 +52,7 @@ public class RandomPlayer implements Player {
 	}
 
 	@Override
-	public Future<String> getGuess() {
+	public String getGuess() {
 		int randomPos = (int) (Math.random() * this.availableGuesses.size());
 		String guess = this.availableGuesses.remove(randomPos);
 		System.out.println("Player: " + name + ". Guesses: Am I " + guess);

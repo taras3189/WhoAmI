@@ -9,13 +9,13 @@ public interface Player {
 	Future<String> suggestCharacter();
 
 	// TODO: return Future<String>
-	Future<String> getQuestion();
+	String getQuestion();
 
 	// TODO: return Future<String>
 	Future<String> answerQuestion(String question, String character);
 
 	// TODO: return Future<String>
-	Future<String> getGuess();
+	String getGuess();
 
 	// TODO: return Future<String>
 	Future<Boolean> isReadyForGuess();
